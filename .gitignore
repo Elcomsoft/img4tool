@@ -27,7 +27,9 @@ Index
 stamp-h2
 *.pc
 img4tool/img4tool
+separttool/separttool
 include/img4tool/img4tool.hpp
 configure~
 project.xcworkspace
 xcshareddata
+*buildroot*

@@ -10,21 +10,13 @@
 #include "../include/img4tool/ASN1DERElement.hpp"
 
 #include <libgeneral/macros.h>
-#include <libgeneral/ByteOrder.hpp>
+#include <libgeneral/Utils.hpp>
 
 #include <stdio.h>
 #include <string.h>
 #include <array>
 #include <algorithm>
-extern "C"{
-#include "lzssdec.h"
-};
-
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#elif defined(HAVE_WINSOCK_H)
-#include <winsock.h>
-#endif
+#include "lzssdec.hpp"
 
 #if defined(HAVE_LIBCOMPRESSION)
 #   include <compression.h>
@@ -71,7 +63,6 @@ namespace tihmstar {
 
         void printRecSequence(const void *buf, size_t size, int indent = 0, bool dontIndentNext = false);
 
-        ASN1DERElement parsePrivTag(const void *buf, size_t size, size_t *outPrivTag);
         ASN1DERElement uncompressIfNeeded(const ASN1DERElement &compressedOctet, const ASN1DERElement &origIM4P, const char **outUsedCompression = NULL, const char **outHypervisor = NULL, size_t *outHypervisorSize = NULL);
     };
 };
@@ -121,7 +112,7 @@ void tihmstar::img4tool::printKBAG(const void *buf, size_t size, int indent){
 }
 
 void tihmstar::img4tool::printMANB(const void *buf, size_t size, bool printAll, int indent){
-    size_t privTag = 0;
+    uint64_t privTag = 0;
     ASN1DERElement sequence = parsePrivTag(buf, size, &privTag);
     assure(privTag == *(uint32_t*)"MANB");
     assure(sequence.tag().isConstructed);
@@ -146,7 +137,7 @@ void tihmstar::img4tool::printMANB(const void *buf, size_t size, bool printAll, 
                     for (int z=0; z<INDENTVALUE*indent; z++) printf(" ");
                     
                     for (auto &stag : tag){
-                        size_t privTag = 0;
+                        uint64_t privTag = 0;
                         ASN1DERElement subsequence = parsePrivTag(stag.buf(), stag.size(), &privTag);
 
                         if (privTag == *(uint32_t*)"MANP") {
@@ -170,7 +161,7 @@ void tihmstar::img4tool::printMANB(const void *buf, size_t size, bool printAll, 
 }
 
 void tihmstar::img4tool::printMANP(const void *buf, size_t size, int indent){
-    size_t privTag = 0;
+    uint64_t privTag = 0;
     ASN1DERElement sequence = parsePrivTag(buf, size, &privTag);
     assure(privTag == *(uint32_t*)"MANP");
     assure(sequence.tag().isConstructed);
@@ -195,7 +186,7 @@ void tihmstar::img4tool::printMANP(const void *buf, size_t size, int indent){
 
                     for (auto &elem : tag) {
                         for (int z=0; z<INDENTVALUE*indent; z++) printf(" ");
-                        size_t privElem = 0;
+                        uint64_t privElem = 0;
                         ASN1DERElement subsequence = parsePrivTag(elem.buf(), elem.size(), &privElem);
                         putPrivtag(privElem);
 
@@ -209,7 +200,7 @@ void tihmstar::img4tool::printMANP(const void *buf, size_t size, int indent){
                                 ++pos;
                                 printf(": ");
                                 if (pos == 1) {
-                                    if (privElem == htonl('love')) {
+                                    if (privElem == __builtin_bswap32('love')) {
                                         printf("%s",subelem.getStringValue().c_str());
                                         continue;
                                     }
@@ -276,7 +267,7 @@ void tihmstar::img4tool::printRecSequence(const void *buf, size_t size, int inde
 
     for (auto &elem : sequence){
         if (*(uint8_t*)elem.buf() == (uint8_t)ASN1DERElement::TagPrivate){
-            size_t privTag = 0;
+            uint64_t privTag = 0;
             ASN1DERElement sequence = parsePrivTag(elem.buf(), elem.size(), &privTag);
             printf("\n");
             if (indent && !dontIndentNext) {
@@ -287,13 +278,15 @@ void tihmstar::img4tool::printRecSequence(const void *buf, size_t size, int inde
             printRecSequence(sequence.buf(), sequence.size(), indent+1, true);
         }else if (elem.tag().isConstructed) {
             printRecSequence(elem.buf(), elem.size(), indent+1);
+            printf("\n");
         }else{
             ASN1DERElement subelem;
-            bool haveSubelem = true;
-            try {subelem = {elem.payload(),elem.payloadSize()};(void)*subelem.begin();} catch (...) {haveSubelem=false;}
+            bool haveSubelem = false;
+//            try {subelem = {elem.payload(),elem.payloadSize()};(void)*subelem.begin();} catch (...) {haveSubelem=false;}
             if (elem.tag().tagNumber == ASN1DERElement::TagOCTET && haveSubelem && subelem.tag().isConstructed) {
                 try{
                     printRecSequence(subelem.buf(), subelem.size(), indent+1);
+                    haveSubelem = true;
                     printf("\n");
                 }catch (...){
                     haveSubelem = false;
@@ -315,51 +308,6 @@ void tihmstar::img4tool::printRecSequence(const void *buf, size_t size, int inde
         }
     }
 }
-
-
-ASN1DERElement tihmstar::img4tool::parsePrivTag(const void *buf, size_t size, size_t *outPrivTag){
-    size_t privTag = 0;
-    ASN1DERElement::ASN1PrivateTag *ptag = NULL;
-    ASN1DERElement::ASN1Len *tlen = NULL;
-    size_t taginfoSize = 7;
-    assure(size >= taginfoSize);
-    assure(*(uint8_t*)buf == ASN1DERElement::TagPrivate);
-
-
-    ptag = ((ASN1DERElement::ASN1PrivateTag *)buf) + 1;
-    tlen = ((ASN1DERElement::ASN1Len *)buf) + 6;
-    
-    for (int i=0; i<taginfoSize-1; i++) {
-        privTag <<=7;
-        privTag |= ptag[i].num;
-        if (!ptag[i].more) break;
-    }
-
-    if (outPrivTag) *outPrivTag = htonl(privTag);
-
-    if (tlen->isLong){
-        taginfoSize += tlen->len;
-    }
-
-    size_t playloadLen = 0;
-    {
-        if (!tlen->isLong){
-            playloadLen = tlen->len;
-        }else{
-            assure(tlen->len <= sizeof(size_t)); //can't hold more than size_t
-            assure(size > taginfoSize); //len bytes shouldn't be outside of buffer
-
-            for (uint8_t sizebits = 0; sizebits < tlen->len; sizebits++) {
-                playloadLen <<= 8;
-                playloadLen |= ((uint8_t*)tlen)[1+sizebits];
-            }
-        }
-    }
-    
-    assure(size >= playloadLen+taginfoSize);
-    return {(uint8_t*)buf+taginfoSize,playloadLen};
-}
-
 
 #pragma mark public
 
@@ -459,6 +407,9 @@ void tihmstar::img4tool::printIM4P(const void *buf, size_t size){
                     break;
                 case 4:
                 {
+                    /*
+                        The keybag is supposed to be here, but the image might be not encrypted
+                     */
                     ASN1DERElement octet = tag;
                     if (!octet.tag().isConstructed
                             && octet.tag().tagNumber == ASN1DERElement::TagOCTET
@@ -468,7 +419,6 @@ void tihmstar::img4tool::printIM4P(const void *buf, size_t size){
                         hasKBAG = true;
                         break;
                     }else{
-                        debug("Warning: got more than 3 elements, but element is not octet!\n");
                         ++i; //skip to step 5
                     }
                 }
@@ -553,16 +503,11 @@ void tihmstar::img4tool::printSEPIDesc(const char *buf, size_t size){
     });
     
     assure(payload = (uint8_t*)malloc(size / 2));
-    
-    for (size_t i=0; i<size; i+=2) {
-        unsigned int v = 0;
-        retassure(sscanf(&buf[i], "%02x",&v) == 1, "Failed to parse desc byte");
-        payload[i/2] = (uint8_t)v;
-    }
+    assure(hexToBytes(buf, payload, size/2) > 0);
     
     ASN1DERElement sepidesc(payload,size/2);
     {
-        size_t privElem = 0;
+        uint64_t privElem = 0;
         ASN1DERElement subsequence = parsePrivTag(sepidesc.buf(), sepidesc.size(), &privElem);
         putPrivtag(privElem);
         printf(": ");
@@ -652,7 +597,7 @@ ASN1DERElement tihmstar::img4tool::getBNCNFromIM4R(const ASN1DERElement &im4r){
     
     for (auto elem : set){
         if (*(uint8_t*)elem.buf() == (uint8_t)ASN1DERElement::TagPrivate){
-            size_t privTag = 0;
+            uint64_t privTag = 0;
             ASN1DERElement bncn = parsePrivTag(elem.buf(), elem.size(), &privTag);
             if (privTag == *(uint32_t*)"BNCN"){
                 ASN1DERElement octet = bncn[1];
@@ -799,15 +744,75 @@ tihmstar::Mem tihmstar::img4tool::getKBAG(const ASN1DERElement &im4p, int kbagNu
     reterror("Failed to get KBAG with num=%d",kbagNum);
 }
 
+bool tihmstar::img4tool::im4pContainsPAYP(const ASN1DERElement &im4p){
+    retassure(isIM4P(im4p), "Arg is not IM4P");
+    assure(im4p.tag().isConstructed);
+    assure(im4p.tag().tagNumber == ASN1DERElement::TagSEQUENCE);
+    assure(im4p.tag().tagClass == ASN1DERElement::TagClass::Universal);
+
+    {
+        int i=-1;
+        for (auto &tag : im4p) {
+            switch (++i) {
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                    break;
+                case 4:
+                case 5:
+                case 6:
+                    if (tag.tag().isConstructed && tag.tag().tagNumber == 0 && tag.tag().tagClass == ASN1DERElement::TagClass::ContextSpecific){
+                        return true;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    return false;
+}
+
+ASN1DERElement tihmstar::img4tool::getPAYPFromIM4P(const ASN1DERElement &im4p){
+    retassure(isIM4P(im4p), "Arg is not IM4P");
+    assure(im4p.tag().isConstructed);
+    assure(im4p.tag().tagNumber == ASN1DERElement::TagSEQUENCE);
+    assure(im4p.tag().tagClass == ASN1DERElement::TagClass::Universal);
+
+    {
+        int i=-1;
+        for (auto &tag : im4p) {
+            switch (++i) {
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                    break;
+                case 4:
+                case 5:
+                case 6:
+                    if (tag.tag().isConstructed && tag.tag().tagNumber == 0 && tag.tag().tagClass == ASN1DERElement::TagClass::ContextSpecific){
+                        ASN1DERElement payp = tag[0];
+                        return payp;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    reterror("Failed to find PAYP");
+}
 
 ASN1DERElement tihmstar::img4tool::uncompressIfNeeded(const ASN1DERElement &compressedOctet, const ASN1DERElement &origIM4P, const char **outUsedCompression, const char **outHypervisor, size_t *outHypervisorSize){
-    const char *payload = (const char *)compressedOctet.payload();
-    size_t payloadSize = compressedOctet.payloadSize();
     size_t unpackedLen = 0;
-    char *unpacked = NULL;
+    void *unpacked = NULL;
     cleanup([&]{
         safeFree(unpacked);
     });
+    const char *payload = (const char *)compressedOctet.payload();
+    size_t payloadSize = compressedOctet.payloadSize();
     ASN1DERElement retVal=compressedOctet;
 
     if (strncmp(payload, "complzss", 8) == 0) {
@@ -896,11 +901,11 @@ ASN1DERElement tihmstar::img4tool::getPayloadFromIM4P(const ASN1DERElement &im4p
 ASN1DERElement tihmstar::img4tool::getValFromIM4M(const ASN1DERElement &im4m, uint32_t val){
     assure(isIM4M(im4m));
 
-    val = htonl(val); //allows us to pass "ECID" instead of "DICE"
+    val = __builtin_bswap32(val); //allows us to pass "ECID" instead of "DICE"
 
     ASN1DERElement set = im4m[2];
     ASN1DERElement manbpriv = set[0];
-    size_t privTagVal = 0;
+    uint64_t privTagVal = 0;
     ASN1DERElement manb = parsePrivTag(manbpriv.buf(), manbpriv.size(), &privTagVal);
     assure(privTagVal == *(uint32_t*)"MANB");
     assure(manb[0].getStringValue() == "MANB");
@@ -915,7 +920,7 @@ ASN1DERElement tihmstar::img4tool::getValFromIM4M(const ASN1DERElement &im4m, ui
     ASN1DERElement manpset = manp[1];
 
     for (auto &e : manpset) {
-        size_t ptagVal = 0;
+        uint64_t ptagVal = 0;
         ASN1DERElement ptag = parsePrivTag(e.buf(), e.size(), &ptagVal);
         if (ptagVal == val) {
             assure(*(uint32_t*)ptag[0].getStringValue().c_str() == val);
@@ -924,7 +929,7 @@ ASN1DERElement tihmstar::img4tool::getValFromIM4M(const ASN1DERElement &im4m, ui
     }
     
     for (auto &e : manbset) {
-        size_t ptagVal = 0;
+        uint64_t ptagVal = 0;
         ASN1DERElement ptag = parsePrivTag(e.buf(), e.size(), &ptagVal);
         if (ptagVal == val) {
             assure(*(uint32_t*)ptag[0].getStringValue().c_str() == val);
@@ -937,10 +942,10 @@ ASN1DERElement tihmstar::img4tool::getValFromIM4M(const ASN1DERElement &im4m, ui
 }
 
 ASN1DERElement tihmstar::img4tool::getValFromElement(const ASN1DERElement &e, uint32_t val){
-    val = htonl(val); //allows us to pass "ECID" instead of "DICE"
+    val = __builtin_bswap32(val); //allows us to pass "ECID" instead of "DICE"
 
     for (auto &elem : e) {
-        size_t ptagVal = 0;
+        uint64_t ptagVal = 0;
         ASN1DERElement ptag = parsePrivTag(elem.buf(), elem.size(), &ptagVal);
         if (ptagVal == val) {
             assure(*(uint32_t*)ptag[0].getStringValue().c_str() == val);
@@ -951,6 +956,48 @@ ASN1DERElement tihmstar::img4tool::getValFromElement(const ASN1DERElement &e, ui
     reterror("failed to find val!");
 }
 
+ASN1DERElement tihmstar::img4tool::parsePrivTag(const void *buf, uint64_t size, uint64_t *outPrivTag){
+    size_t privTag = 0;
+    ASN1DERElement::ASN1PrivateTag *ptag = NULL;
+    ASN1DERElement::ASN1Len *tlen = NULL;
+    size_t taginfoSize = 7;
+    assure(size >= taginfoSize);
+    assure(*(uint8_t*)buf == ASN1DERElement::TagPrivate);
+
+
+    ptag = ((ASN1DERElement::ASN1PrivateTag *)buf) + 1;
+    tlen = ((ASN1DERElement::ASN1Len *)buf) + 6;
+    
+    for (int i=0; i<taginfoSize-1; i++) {
+        privTag <<=7;
+        privTag |= ptag[i].num;
+        if (!ptag[i].more) break;
+    }
+
+    if (outPrivTag) *outPrivTag = __builtin_bswap32(privTag);
+
+    if (tlen->isLong){
+        taginfoSize += tlen->len;
+    }
+
+    size_t playloadLen = 0;
+    {
+        if (!tlen->isLong){
+            playloadLen = tlen->len;
+        }else{
+            assure(tlen->len <= sizeof(size_t)); //can't hold more than size_t
+            assure(size > taginfoSize); //len bytes shouldn't be outside of buffer
+
+            for (uint8_t sizebits = 0; sizebits < tlen->len; sizebits++) {
+                playloadLen <<= 8;
+                playloadLen |= ((uint8_t*)tlen)[1+sizebits];
+            }
+        }
+    }
+    
+    assure(size >= playloadLen+taginfoSize);
+    return {(uint8_t*)buf+taginfoSize,playloadLen};
+}
 
 ASN1DERElement tihmstar::img4tool::genPrivTagForNumberWithPayload(size_t privnum, const ASN1DERElement &payload){
     char *elembuf = NULL;
@@ -1000,17 +1047,8 @@ ASN1DERElement tihmstar::img4tool::decryptPayload(const ASN1DERElement &payload,
 
     assure(strlen(decryptIv) == sizeof(iv)*2);
     assure(strlen(decryptKey) == sizeof(key)*2);
-    for (int i=0; i<sizeof(iv); i++) {
-        unsigned int t;
-        assure(sscanf(decryptIv+i*2,"%02x",&t) == 1);
-        iv[i] = t;
-    }
-    for (int i=0; i<sizeof(key); i++) {
-        unsigned int t;
-        assure(sscanf(decryptKey+i*2,"%02x",&t) == 1);
-        key[i] = t;
-    }
-
+    assure(hexToBytes(decryptIv, iv, sizeof(iv)) > 0);
+    assure(hexToBytes(decryptKey, key, sizeof(key)) > 0);
 
 #ifdef HAVE_OPENSSL
     AES_KEY decKey = {};
@@ -1025,6 +1063,109 @@ ASN1DERElement tihmstar::img4tool::decryptPayload(const ASN1DERElement &payload,
 
     return decPayload;
 }
+
+ASN1DERElement tihmstar::img4tool::encryptIM4P(const ASN1DERElement &im4p, const char *encryptIV, const char *encryptKey, const char *kbag1, const char *kbag2){
+    assure(isIM4P(im4p));
+    ASN1DERElement payload = im4p[3];
+    
+    try {
+        auto kb = im4p[4];
+        reterror("im4p alread has a kbag");
+    } catch (...) {
+        //
+    }
+
+    uint8_t iv[16] = {};
+    uint8_t key[32] = {};
+    retassure(encryptIV, "encryptPayload requires IV but none was provided!");
+    retassure(encryptKey, "encryptPayload requires KEY but none was provided!");
+    retassure(kbag1, "encryptPayload requires KBAG but none was provided!");
+
+    assure(!payload.tag().isConstructed);
+    assure(payload.tag().tagNumber == ASN1DERElement::TagOCTET);
+    assure(payload.tag().tagClass == ASN1DERElement::TagClass::Universal);
+
+    ASN1DERElement encPayload(payload);
+
+    assure(strlen(encryptIV) == sizeof(iv)*2);
+    assure(strlen(encryptKey) == sizeof(key)*2);
+    assure(hexToBytes(encryptIV, iv, sizeof(iv)) > 0);
+    assure(hexToBytes(encryptKey, key, sizeof(key)) > 0);
+
+    ASN1DERElement deckb({ASN1DERElement::TagSEQUENCE, ASN1DERElement::Constructed, ASN1DERElement::Universal},NULL,0);
+    {
+        uint8_t kbnum = 0;
+        deckb += {{ASN1DERElement::TagINTEGER, ASN1DERElement::Primitive, ASN1DERElement::Universal},&kbnum,sizeof(kbnum)};
+        deckb += {{ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},&iv,sizeof(iv)};
+        deckb += {{ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},&key,sizeof(key)};
+    }
+
+
+#ifdef HAVE_OPENSSL
+    AES_KEY encKey = {};
+    retassure(!AES_set_encrypt_key(key, sizeof(key)*8, &encKey), "Failed to set decryption key");
+    AES_cbc_encrypt((const unsigned char*)encPayload.payload(), (unsigned char*)encPayload.payload(), encPayload.payloadSize(), &encKey, iv, AES_ENCRYPT);
+#elif defined(HAVE_COMMCRYPTO)
+    retassure(CCCrypt(kCCEncrypt, kCCAlgorithmAES, 0, key, sizeof(key), iv, encPayload.payload(), encPayload.payloadSize(), (void*)encPayload.payload(), encPayload.payloadSize(), NULL) == kCCSuccess,
+              "Encryption failed!");
+#else
+    reterror("Compiled without crypto!");
+#endif
+
+    ASN1DERElement retim4p({ASN1DERElement::TagSEQUENCE, ASN1DERElement::Constructed, ASN1DERElement::Universal},NULL,0);
+    retim4p += im4p[0];
+    retim4p += im4p[1];
+    retim4p += im4p[2];
+    retim4p += encPayload;
+
+    ASN1DERElement retkbags({ASN1DERElement::TagSEQUENCE, ASN1DERElement::Constructed, ASN1DERElement::Universal},NULL,0);
+
+    {
+        uint8_t kbnum = 1;
+
+        uint8_t kb_iv[16] = {};
+        uint8_t kb_key[32] = {};
+        assure(strlen(kbag1) == sizeof(kb_iv)*2+ sizeof(kb_key)*2);
+        assure(hexToBytes(kbag1, kb_iv, sizeof(kb_iv)) > 0);
+        assure(hexToBytes(kbag1+sizeof(kb_iv)*2, kb_key, sizeof(kb_key)) > 0);
+        
+        ASN1DERElement kb({ASN1DERElement::TagSEQUENCE, ASN1DERElement::Constructed, ASN1DERElement::Universal},NULL,0);
+        kb += {{ASN1DERElement::TagINTEGER, ASN1DERElement::Primitive, ASN1DERElement::Universal},&kbnum,sizeof(kbnum)};
+        kb += {{ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},&kb_iv,sizeof(kb_iv)};
+        kb += {{ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},&kb_key,sizeof(kb_key)};
+
+        retkbags+=kb;
+    }
+
+    if (kbag2 == NULL) {
+        kbag2 = kbag1;
+    }
+    
+    if (strlen(kbag2) != 0){
+        uint8_t kbnum = 2;
+
+        uint8_t kb_iv[16] = {};
+        uint8_t kb_key[32] = {};
+        assure(strlen(kbag2) == sizeof(kb_iv)*2+ sizeof(kb_key)*2);
+        assure(hexToBytes(kbag2, kb_iv, sizeof(kb_iv)) > 0);
+        assure(hexToBytes(kbag2+sizeof(kb_iv)*2, kb_key, sizeof(kb_key)) > 0);
+        
+        ASN1DERElement kb({ASN1DERElement::TagSEQUENCE, ASN1DERElement::Constructed, ASN1DERElement::Universal},NULL,0);
+        kb += {{ASN1DERElement::TagINTEGER, ASN1DERElement::Primitive, ASN1DERElement::Universal},&kbnum,sizeof(kbnum)};
+        kb += {{ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},&kb_iv,sizeof(kb_iv)};
+        kb += {{ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},&kb_key,sizeof(kb_key)};
+
+        retkbags+=kb;
+
+        
+        retkbags+=deckb;
+    }
+
+    retim4p += {{ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},retkbags.buf(),retkbags.size()};
+
+    return retim4p;
+}
+
 
 std::string tihmstar::img4tool::getIM4PSHA1(const ASN1DERElement &im4p){
     std::array<char, SHA_DIGEST_LENGTH> tmp{'\0'};
@@ -1044,7 +1185,7 @@ std::string tihmstar::img4tool::dgstNameForHash(const ASN1DERElement &im4m, std:
     assure(isIM4M(im4m));
     ASN1DERElement set = im4m[2];
     ASN1DERElement manbpriv = set[0];
-    size_t privTagVal = 0;
+    uint64_t privTagVal = 0;
     ASN1DERElement manb = parsePrivTag(manbpriv.buf(), manbpriv.size(), &privTagVal);
     assure(privTagVal == *(uint32_t*)"MANB");
     assure(manb[0].getStringValue() == "MANB");
@@ -1052,7 +1193,7 @@ std::string tihmstar::img4tool::dgstNameForHash(const ASN1DERElement &im4m, std:
     ASN1DERElement manbset = manb[1];
 
     for (auto &e : manbset) {
-        size_t pTagVal = 0;
+        uint64_t pTagVal = 0;
         ASN1DERElement me = parsePrivTag(e.buf(), e.size(), &pTagVal);
         if (pTagVal == *(uint32_t*)"MANP")
             continue;
@@ -1061,7 +1202,7 @@ std::string tihmstar::img4tool::dgstNameForHash(const ASN1DERElement &im4m, std:
         std::string dgstName = me[0].getStringValue();
 
         for (auto &se : set) {
-            size_t pTagVal = 0;
+            uint64_t pTagVal = 0;
             ASN1DERElement sel = parsePrivTag(se.buf(), se.size(), &pTagVal);
             switch (pTagVal) {
                 case 'TSGD': //DGST
@@ -1093,9 +1234,7 @@ bool tihmstar::img4tool::im4mContainsHash(const ASN1DERElement &im4m, std::strin
 bool tihmstar::img4tool::isGeneratorValidForIM4M(const ASN1DERElement &im4m, std::string generator) noexcept{
     try {
         ASN1DERElement bnch = getValFromIM4M(im4m,'BNCH');
-        uint64_t gen = 0;
-
-        sscanf(generator.c_str(), "0x%16llx", &gen);
+        uint64_t gen = strtoull(generator.c_str(), NULL, 16);
 
         if (bnch.payloadSize() == SHA_DIGEST_LENGTH) {
             std::array<char, SHA_DIGEST_LENGTH> tmp{'\0'};
@@ -1111,6 +1250,35 @@ bool tihmstar::img4tool::isGeneratorValidForIM4M(const ASN1DERElement &im4m, std
     } catch (...) {
         return false;
     }
+}
+
+bool img4tool::isIM4PValidForIM4M(const ASN1DERElement &im4p, const ASN1DERElement &im4m){
+    retassure(isIM4P(im4p), "Input not im4p");
+    retassure(isIM4M(im4m), "Input not im4m");
+
+    auto im4pSHA1 = getIM4PSHA1(im4p);
+    auto im4pSHA384 = getIM4PSHA384(im4p);
+        
+    try {
+        dgstNameForHash(im4m, im4pSHA1);
+        return true;
+    } catch (...) {
+        //
+    }
+    try {
+        dgstNameForHash(im4m, im4pSHA384);
+        return true;
+    } catch (...) {
+        //
+    }
+    return false;
+}
+
+bool img4tool::isIM4PValidForIM4MInIMG4(const ASN1DERElement &img4){
+    retassure(isIMG4(img4), "Input not img4");
+    auto im4p = getIM4PFromIMG4(img4);
+    auto im4m = getIM4MFromIMG4(img4);
+    return isIM4PValidForIM4M(im4p, im4m);
 }
 #endif //HAVE_CRYPTO
 #pragma mark end_needs_crypto
@@ -1144,7 +1312,7 @@ ASN1DERElement tihmstar::img4tool::getIM4RWithElements(std::map<std::string,tihm
         ASN1DERElement bnch_payload({ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},e.second.data(),e.second.size());
         bnch_seq += bnch_str;
         bnch_seq += bnch_payload;
-        ASN1DERElement bnch = genPrivTagForNumberWithPayload(htonl(*(uint32_t*)e.first.c_str()),bnch_seq);
+        ASN1DERElement bnch = genPrivTagForNumberWithPayload(__builtin_bswap32(*(uint32_t*)e.first.c_str()),bnch_seq);
         set += bnch;
     }
     
@@ -1166,6 +1334,10 @@ ASN1DERElement tihmstar::img4tool::appendPayloadToIM4P(const ASN1DERElement &im4
     ASN1DERElement newim4p(im4p);
     
     ASN1DERElement im4p_payload({ASN1DERElement::TagOCTET, ASN1DERElement::Primitive, ASN1DERElement::Universal},buf,size);
+    while (im4p_payload.payloadSize() & 0xF) {
+        uint8_t zero = 0;
+        im4p_payload.appendPayload(&zero, sizeof(zero));
+    }
     
     if (compression) {
         if (strcmp(compression, "complzss") == 0) {
@@ -1228,8 +1400,22 @@ ASN1DERElement tihmstar::img4tool::appendPayloadToIM4P(const ASN1DERElement &im4
     }else{
         newim4p += im4p_payload;
     }
-    
+    return newim4p;
+}
 
+ASN1DERElement tihmstar::img4tool::appendPAYPToIM4P(const ASN1DERElement &im4p, const ASN1DERElement &payp){
+    assure(im4p.tag().isConstructed);
+    assure(im4p.tag().tagNumber == ASN1DERElement::TagSEQUENCE);
+    assure(im4p.tag().tagClass == ASN1DERElement::TagClass::Universal);
+
+    retassure(im4p[0].getStringValue() == "IM4P", "Container is not a IM4P");
+    retassure(im4p[1].getStringValue().size() == 4, "IM4P type has size != 4");
+    retassure(im4p[2].getStringValue().size(), "IM4P description is empty");
+    retassure(isPAYP(payp), "PAYP is not a PAYP");
+    ASN1DERElement newim4p(im4p);
+    ASN1DERElement seq{{0,ASN1DERElement::Constructed, ASN1DERElement::ContextSpecific},NULL,0};
+    seq+=payp;
+    newim4p+=seq;
     return newim4p;
 }
 
@@ -1344,6 +1530,26 @@ bool tihmstar::img4tool::isIM4C(const ASN1DERElement &im4c) noexcept{
     return false;
 }
 
+bool tihmstar::img4tool::isPAYP(const ASN1DERElement &payp) noexcept{
+    try {
+        assure(payp.tag().isConstructed);
+        assure(payp.tag().tagNumber == ASN1DERElement::TagSEQUENCE);
+        assure(payp.tag().tagClass == ASN1DERElement::TagClass::Universal);
+
+        retassure(payp[0].getStringValue() == "PAYP", "Container is not a PAYP");
+        auto set = payp[1];
+        assure(set.tag().isConstructed);
+        assure(set.tag().tagNumber == ASN1DERElement::TagSET);
+        assure(set.tag().tagClass == ASN1DERElement::TagClass::Universal);
+
+        return true;
+    } catch (tihmstar::exception &e) {
+        //
+    }
+    return false;
+}
+
+
 ASN1DERElement tihmstar::img4tool::renameIM4P(const ASN1DERElement &im4p, const char *type){
     assure(isIM4P(im4p));
     retassure(strlen(type) == 4, "type has size != 4");
@@ -1434,6 +1640,34 @@ bool tihmstar::img4tool::isIM4MSignatureValid(const ASN1DERElement &im4m){
 
 #pragma mark begin_needs_plist
 #ifdef HAVE_PLIST
+tihmstar::Mem img4tool::im4mFormShshFile(const char *shshfile, char **generator){
+    plist_t p_shsh = NULL;
+    cleanup([&]{
+        safeFreeCustom(p_shsh, plist_free);
+    });
+    plist_err_t perr = PLIST_ERR_SUCCESS;
+    plist_t ticket = NULL;
+    tihmstar::Mem ret;
+
+    retassure((perr = plist_read_from_file(shshfile, &p_shsh, NULL)) == PLIST_ERR_SUCCESS, "Failed to read SHSHFile '%s' with err=%d",shshfile,perr);
+    retassure(ticket = plist_dict_get_item(p_shsh, "ApImg4Ticket"), "Failed to get ApImg4Ticket from shsh file");
+
+    {
+        const char *data = NULL;
+        uint64_t dataSize = 0;
+        retassure(data = plist_get_data_ptr(ticket, &dataSize), "Failed to get data from ApImg4Ticket");
+        ret.append(data, dataSize);
+    }
+    
+    if (generator){
+        retassure(*generator == NULL, "*generator should be NULL");
+        if ((ticket = plist_dict_get_item(p_shsh, "generator")))
+            plist_get_string_val(ticket, generator);
+    }
+
+    return ret;
+}
+
 bool tihmstar::img4tool::doesIM4MBoardMatchBuildIdentity(const ASN1DERElement &im4m, plist_t buildIdentity) noexcept{
     plist_t ApBoardID = NULL;
     plist_t ApChipID = NULL;
@@ -1452,7 +1686,7 @@ bool tihmstar::img4tool::doesIM4MBoardMatchBuildIdentity(const ASN1DERElement &i
 
         ASN1DERElement set = im4m[2];
         ASN1DERElement manbpriv = set[0];
-        size_t privTagVal = 0;
+        uint64_t privTagVal = 0;
         ASN1DERElement manb = parsePrivTag(manbpriv.buf(), manbpriv.size(), &privTagVal);
         assure(privTagVal == *(uint32_t*)"MANB");
         assure(manb[0].getStringValue() == "MANB");
@@ -1471,14 +1705,14 @@ bool tihmstar::img4tool::doesIM4MBoardMatchBuildIdentity(const ASN1DERElement &i
         for (auto &e : manpset) {
             char *pstrval= NULL;
             uint64_t val = 0;
-            size_t ptagVal = 0;
+            uint64_t pTagVal = 0;
             plist_t currVal = NULL;
             cleanup([&]{
                 safeFree(pstrval);
             });
-            ASN1DERElement ptag = parsePrivTag(e.buf(), e.size(), &ptagVal);
+            ASN1DERElement ptag = parsePrivTag(e.buf(), e.size(), &pTagVal);
 
-            switch (ptagVal) {
+            switch (pTagVal) {
                 case 'DROB': //BORD
                     assure(ptag[0].getStringValue() == "BORD");
                     currVal = ApBoardID;ApBoardID = NULL;
@@ -1496,11 +1730,7 @@ bool tihmstar::img4tool::doesIM4MBoardMatchBuildIdentity(const ASN1DERElement &i
             }
 
             plist_get_string_val(currVal, &pstrval);
-            if (strncmp("0x", pstrval, 2) == 0){
-                sscanf(pstrval, "0x%llx",&val);
-            }else{
-                sscanf(pstrval, "%lld",&val);
-            }
+            val = parseNum(pstrval);
             assure(ptag[1].getIntegerValue() == val);
         }
         //make sure we verified all 3 values we wanted to check
@@ -1531,7 +1761,7 @@ bool tihmstar::img4tool::im4mMatchesBuildIdentity(const ASN1DERElement &im4m, pl
         printf("[IMG4TOOL] checking buildidentity has all required hashes:\n");
         ASN1DERElement set = im4m[2];
         ASN1DERElement manbpriv = set[0];
-        size_t privTagVal = 0;
+        uint64_t privTagVal = 0;
         ASN1DERElement manb = parsePrivTag(manbpriv.buf(), manbpriv.size(), &privTagVal);
         assure(privTagVal == *(uint32_t*)"MANB");
         assure(manb[0].getStringValue() == "MANB");
@@ -1588,7 +1818,7 @@ bool tihmstar::img4tool::im4mMatchesBuildIdentity(const ASN1DERElement &im4m, pl
 
 
             for (auto &e : manbset) {
-                size_t pTagVal = 0;
+                uint64_t pTagVal = 0;
                 ASN1DERElement me = parsePrivTag(e.buf(), e.size(), &pTagVal);
                 if (pTagVal == *(uint32_t*)"MANP")
                     continue;
@@ -1596,7 +1826,7 @@ bool tihmstar::img4tool::im4mMatchesBuildIdentity(const ASN1DERElement &im4m, pl
                 ASN1DERElement set = me[1];
 
                 for (auto &se : set) {
-                    size_t pTagVal = 0;
+                    uint64_t pTagVal = 0;
                     ASN1DERElement sel = parsePrivTag(se.buf(), se.size(), &pTagVal);
                     switch (pTagVal) {
                         case 'TSGD': //DGST

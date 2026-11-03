@@ -9,7 +9,6 @@
 #ifndef ASN1DER_hpp
 #define ASN1DER_hpp
 
-#include <unistd.h>
 #include <stdint.h>
 #include <iostream>
 
@@ -106,7 +105,7 @@ namespace tihmstar {
         public:
             ASN1DERElement();
             ASN1DERElement(const void *buf, size_t bufSize, bool ownsBuffer = false);
-            ASN1DERElement(const ASN1TAG tag, const void *payload, size_t payloadLen);
+            ASN1DERElement(const ASN1TAG tag, const void *payload = NULL, size_t payloadLen = 0);
             ~ASN1DERElement();
             
             ASN1DERElement(ASN1DERElement &&old);
@@ -119,14 +118,16 @@ namespace tihmstar {
             size_t taginfoSize() const;
             size_t payloadSize() const;
             size_t size() const;
+            uint32_t numElements() const;
 
             ASN1TAG tag() const;
             
             std::string getStringValue() const;
-            uint64_t getIntegerValue() const;
+            int64_t getIntegerValue() const;
             void print() const;
             std::string printString() const;
 
+            void appendPayload(const void *buf, size_t bufSize);
             
             ASN1DERElement operator[](uint32_t i) const;
             ASN1DERElement &operator+=(const ASN1DERElement &add);
@@ -137,7 +138,7 @@ namespace tihmstar {
             ASN1DERElementIterator end() const;
             
             static std::string makeASN1Size(size_t size);
-            static ASN1DERElement makeASN1Integer(uint64_t num);
+            static ASN1DERElement makeASN1Integer(int64_t num);
         };
         
     };

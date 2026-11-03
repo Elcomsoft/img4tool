@@ -18,7 +18,7 @@ using namespace tihmstar::img4tool;
 
 
 std::string ASN1DERElement::makeASN1Size(size_t size){
-    assure(size < 0x100000000);
+    assure(size <= 0xFFFFFFFF);
     if (size >= 0x1000000) {
         // 1+4 bytes length
         return {{(char)0x84,(char)((size >> 24) & 0xFF),(char)((size >> 16) & 0xFF),(char)((size >> 8) & 0xFF),(char)(size & 0xFF)}};
@@ -37,15 +37,19 @@ std::string ASN1DERElement::makeASN1Size(size_t size){
     }
 }
 
-ASN1DERElement ASN1DERElement::makeASN1Integer(uint64_t num){
-    uint64_t bigEndian = num;
+ASN1DERElement ASN1DERElement::makeASN1Integer(int64_t num){
+    uint64_t bigEndian = 0;
     int bytes = 0;
-        
-    while (num) {
+    bool isNeg = num < 0;
+    
+    bool lastByteHasHighestBitSet = false; //make sure these ints are actually unsigned
+    while (num || (!isNeg && lastByteHasHighestBitSet && bytes <7 )) {
+        lastByteHasHighestBitSet = num & 0x80;
         bigEndian <<=8;
         bigEndian |= num & 0xff;
         num >>=8;
         bytes++;
+        if (isNeg && num == -1 && (bigEndian & 0x80)) break;
     }
     
     return ASN1DERElement({ASN1DERElement::TagNumber::TagINTEGER, ASN1DERElement::Universal}, &bigEndian, bytes);
@@ -105,7 +109,7 @@ ASN1DERElement::ASN1DERElement(const void *buf, size_t bufSize, bool ownsBuffer)
         memcpy((void*)_buf, buf, _bufSize);
     }
 
-    assure(_bufSize >= 2); //needs at least TAG and Size
+    retassure(_bufSize >= 2, "Got _bufSize=%d but needs at least 2 (TAG+Size)",_bufSize); //needs at least TAG and Size
     if (((uint8_t*)_buf)[0] != 0xff) {
         assure(_buf->tagNumber <= TagBMPString);
     }
@@ -127,14 +131,11 @@ ASN1DERElement::ASN1DERElement(const ASN1TAG tag, const void *payload, size_t pa
     }
 }
 
-ASN1DERElement::ASN1DERElement(ASN1DERElement &&old){
-    void *buf = NULL;
-    cleanup([&]{
-        safeFree(buf);
-    });
-    if (_ownsBuffer){
-        buf = (void*)_buf; _buf = NULL;
-    }
+ASN1DERElement::ASN1DERElement(ASN1DERElement &&old) :
+_buf(NULL),
+_bufSize(0),
+_ownsBuffer(false)
+{
     if (old._ownsBuffer) {
         _buf = old._buf;
         _bufSize = old._bufSize;
@@ -209,6 +210,32 @@ size_t ASN1DERElement::size() const{
     return taginfoSize() + payloadSize();
 }
 
+uint32_t ASN1DERElement::numElements() const{
+    uint32_t i = 1;
+    assure(_buf->isConstructed);
+    ASN1DERElement rt;
+    try {
+        rt = {payload(),payloadSize()};
+    } catch (...) {
+        return 0;
+    }
+    
+    size_t bufSize = payloadSize();
+    const uint8_t *bufptr = (const uint8_t *)payload();
+    try {
+        while (true){
+            bufptr += rt.size();
+            bufSize -= rt.size();
+            rt = ASN1DERElement(bufptr, bufSize);
+            i++;
+        }
+    } catch (...) {
+        //
+    }
+    return i;
+}
+
+
 bool ASN1DERElement::ownsBuffer() const{
    return _ownsBuffer;
 }
@@ -234,12 +261,16 @@ std::string ASN1DERElement::getStringValue() const{
     return {(char*)payload(),payloadSize()};
 }
 
-uint64_t ASN1DERElement::getIntegerValue() const{
-    uint64_t rt = 0;
-    assure(_buf->tagNumber == TagNumber::TagINTEGER || _buf->tagNumber == TagNumber::TagBOOLEAN);
+int64_t ASN1DERElement::getIntegerValue() const{
+    int64_t rt = 0;
+//    assure(_buf->tagNumber == TagNumber::TagINTEGER || _buf->tagNumber == TagNumber::TagBOOLEAN);
     uint8_t *data = (uint8_t*)payload();
     size_t dataSize = payloadSize();
-    
+
+    if (dataSize && data[0] & 0x80){
+        rt = -1;
+    }
+
     while (dataSize > 0 && *data == 0) {
         data++;
         dataSize--;
@@ -278,7 +309,7 @@ void ASN1DERElement::print() const{
             break;
         }
         case TagINTEGER:
-            printf("%llu",getIntegerValue());
+            printf("0x%llx",getIntegerValue());
             break;
         case TagBOOLEAN:
             printf("%s",getIntegerValue() == 0 ? "false" : "true");
@@ -317,7 +348,7 @@ std::string ASN1DERElement::printString() const{
         case TagINTEGER:
         {
             char buf[100]={};
-            snprintf(buf, sizeof(buf), "%llu",getIntegerValue());
+            snprintf(buf, sizeof(buf), "0x%llx",getIntegerValue());
             return buf;
         }
         case TagBOOLEAN:
@@ -334,6 +365,39 @@ std::string ASN1DERElement::printString() const{
 }
 
 
+void ASN1DERElement::appendPayload(const void *addBuf, size_t addBufSize){
+    if (!_ownsBuffer){
+        //make a copy
+        *this = (const ASN1DERElement&)(*this);
+    }
+    assure(_ownsBuffer);
+    
+    std::string newSize = makeASN1Size(addBufSize+payloadSize());
+    
+    if (newSize.size() < taginfoSize()) {
+        //newSize fits in the buffer without resizing at front
+        _buf = (const ASN1TAG *)realloc((void*)_buf, _bufSize = size() + addBufSize);
+        
+        memcpy((void*)&_buf[size()], addBuf, addBufSize);
+        memcpy((void*)&_buf[1], newSize.c_str(), newSize.size());
+    }else{
+        size_t size = addBufSize + payloadSize() + 1 + newSize.size();
+        const ASN1TAG *buf = (const ASN1TAG *)malloc(size);
+        
+        cleanup([&]{
+            void *b = (void*)buf; buf = NULL;
+            safeFree(b);
+        })
+        
+        memcpy((void*)&buf[0], &_buf[0], 1);
+        memcpy((void*)&buf[1], newSize.c_str(), newSize.size());
+        memcpy((void*)&buf[1+newSize.size()], payload(), payloadSize());
+        memcpy((void*)&buf[1+newSize.size()+payloadSize()], addBuf, addBufSize);
+        
+        std::swap(_buf, buf);
+        _bufSize = size;
+    }
+}
 
 ASN1DERElement ASN1DERElement::operator[](uint32_t i) const{
     assure(_buf->isConstructed);

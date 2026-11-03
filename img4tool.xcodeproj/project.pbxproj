@@ -7,8 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2A76A6892E16A4F0002B3BCD /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2A76A6872E16A4F0002B3BCD /* main.cpp */; };
+		2A76A68C2E16A5B5002B3BCD /* separttool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2A76A68B2E16A5B5002B3BCD /* separttool.cpp */; };
+		2A76A68D2E16A842002B3BCD /* libgeneral.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 8754A6B0236F16B600C0D285 /* libgeneral.0.dylib */; };
+		2A76A68E2E16A842002B3BCD /* libgeneral.0.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 8754A6B0236F16B600C0D285 /* libgeneral.0.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		2A76A6902E16A85A002B3BCD /* separttool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2A76A68B2E16A5B5002B3BCD /* separttool.cpp */; };
+		2A76A6912E16A85A002B3BCD /* lzssdec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87EB3A6823561EE2008F1B06 /* lzssdec.cpp */; };
+		2A76A6922E16A85A002B3BCD /* ASN1DERElement.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87A281322347B7B900ED08BB /* ASN1DERElement.cpp */; };
+		2A76A6932E16A85A002B3BCD /* img4tool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87A281352347B7CA00ED08BB /* img4tool.cpp */; };
 		2AAE83AD2906DC1500AA1083 /* libcrypto.3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 2AAE83AC2906DC1500AA1083 /* libcrypto.3.dylib */; };
 		2AAE83AE2906DC1500AA1083 /* libcrypto.3.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 2AAE83AC2906DC1500AA1083 /* libcrypto.3.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		2AEF8A6C2F3336F20003A138 /* libcrypto.3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 2AAE83AC2906DC1500AA1083 /* libcrypto.3.dylib */; };
+		2AEF8A6D2F3336F20003A138 /* libcrypto.3.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 2AAE83AC2906DC1500AA1083 /* libcrypto.3.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		2AEF8A6E2F3337040003A138 /* libplist-2.0.4.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 8746A34E2C48DEDD00AB2921 /* libplist-2.0.4.dylib */; };
+		2AEF8A6F2F3337040003A138 /* libplist-2.0.4.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 8746A34E2C48DEDD00AB2921 /* libplist-2.0.4.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		8746A34F2C48DEDD00AB2921 /* libplist-2.0.4.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 8746A34E2C48DEDD00AB2921 /* libplist-2.0.4.dylib */; };
 		8746A3502C48DEDD00AB2921 /* libplist-2.0.4.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 8746A34E2C48DEDD00AB2921 /* libplist-2.0.4.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		8754A6B1236F16B600C0D285 /* libgeneral.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 8754A6B0236F16B600C0D285 /* libgeneral.0.dylib */; };
@@ -19,10 +31,32 @@
 		879B59FA2DDDAA1D00273349 /* libfwkeyfetch.0.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 879B59F82DDDAA1D00273349 /* libfwkeyfetch.0.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		87A281342347B7B900ED08BB /* ASN1DERElement.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87A281322347B7B900ED08BB /* ASN1DERElement.cpp */; };
 		87A281372347B7CA00ED08BB /* img4tool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87A281352347B7CA00ED08BB /* img4tool.cpp */; };
-		87EB3A6923561EE2008F1B06 /* lzssdec.c in Sources */ = {isa = PBXBuildFile; fileRef = 87EB3A6823561EE2008F1B06 /* lzssdec.c */; };
+		87EB3A6923561EE2008F1B06 /* lzssdec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87EB3A6823561EE2008F1B06 /* lzssdec.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		2A76A67E2E16A4E7002B3BCD /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		2A76A68F2E16A842002B3BCD /* Embed Libraries */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				2AEF8A6D2F3336F20003A138 /* libcrypto.3.dylib in Embed Libraries */,
+				2A76A68E2E16A842002B3BCD /* libgeneral.0.dylib in Embed Libraries */,
+				2AEF8A6F2F3337040003A138 /* libplist-2.0.4.dylib in Embed Libraries */,
+			);
+			name = "Embed Libraries";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8754A6B3236F16B600C0D285 /* Embed Libraries */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -49,6 +83,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		2A76A6802E16A4E7002B3BCD /* separttool */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = separttool; sourceTree = BUILT_PRODUCTS_DIR; };
+		2A76A6872E16A4F0002B3BCD /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		2A76A68A2E16A5B5002B3BCD /* separttool.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = separttool.hpp; path = ../include/img4tool/separttool.hpp; sourceTree = "<group>"; };
+		2A76A68B2E16A5B5002B3BCD /* separttool.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = separttool.cpp; sourceTree = "<group>"; };
 		2AAE83A92906DB0600AA1083 /* libcrypto.1.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcrypto.1.1.dylib; path = "../../../../opt/homebrew/Cellar/openssl@1.1/1.1.1q/lib/libcrypto.1.1.dylib"; sourceTree = "<group>"; };
 		2AAE83AC2906DC1500AA1083 /* libcrypto.3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcrypto.3.dylib; path = ../../../../usr/local/lib/libcrypto.3.dylib; sourceTree = "<group>"; };
 		4281CC81234A01C500C30E6D /* libplist.3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libplist.3.dylib; path = ../../../../usr/local/lib/libplist.3.dylib; sourceTree = "<group>"; };
@@ -74,11 +112,21 @@
 		87D69FE1265BE79600AB8610 /* libcrypto.1.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcrypto.1.1.dylib; path = "../../../../opt/homebrew/Cellar/openssl@1.1/1.1.1k/lib/libcrypto.1.1.dylib"; sourceTree = "<group>"; };
 		87E6A5FA24A75AA10081D457 /* libssl.1.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libssl.1.0.0.dylib; path = ../../../../usr/local/Cellar/openssl/1.0.2t/lib/libssl.1.0.0.dylib; sourceTree = "<group>"; };
 		87E6A5FD24A75AC70081D457 /* libcrypto.1.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcrypto.1.0.0.dylib; path = ../../../../usr/local/Cellar/openssl/1.0.2t/lib/libcrypto.1.0.0.dylib; sourceTree = "<group>"; };
-		87EB3A6723561EE2008F1B06 /* lzssdec.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lzssdec.h; sourceTree = "<group>"; };
-		87EB3A6823561EE2008F1B06 /* lzssdec.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lzssdec.c; sourceTree = "<group>"; };
+		87EB3A6723561EE2008F1B06 /* lzssdec.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = lzssdec.hpp; sourceTree = "<group>"; };
+		87EB3A6823561EE2008F1B06 /* lzssdec.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = lzssdec.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		2A76A67D2E16A4E7002B3BCD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2AEF8A6C2F3336F20003A138 /* libcrypto.3.dylib in Frameworks */,
+				2A76A68D2E16A842002B3BCD /* libgeneral.0.dylib in Frameworks */,
+				2AEF8A6E2F3337040003A138 /* libplist-2.0.4.dylib in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		879896A62344A91900A98709 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -94,6 +142,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2A76A6882E16A4F0002B3BCD /* separttool */ = {
+			isa = PBXGroup;
+			children = (
+				2A76A6872E16A4F0002B3BCD /* main.cpp */,
+			);
+			path = separttool;
+			sourceTree = "<group>";
+		};
 		4281CC80234A01C500C30E6D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -123,6 +179,7 @@
 			isa = PBXGroup;
 			children = (
 				879896AB2344A91900A98709 /* img4tool */,
+				2A76A6882E16A4F0002B3BCD /* separttool */,
 				879896AA2344A91900A98709 /* Products */,
 				4281CC80234A01C500C30E6D /* Frameworks */,
 			);
@@ -132,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				879896A92344A91900A98709 /* img4tool */,
+				2A76A6802E16A4E7002B3BCD /* separttool */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -141,11 +199,13 @@
 			children = (
 				87A281332347B7B900ED08BB /* ASN1DERElement.hpp */,
 				87A281322347B7B900ED08BB /* ASN1DERElement.cpp */,
-				87EB3A6723561EE2008F1B06 /* lzssdec.h */,
-				87EB3A6823561EE2008F1B06 /* lzssdec.c */,
+				87EB3A6723561EE2008F1B06 /* lzssdec.hpp */,
+				87EB3A6823561EE2008F1B06 /* lzssdec.cpp */,
 				8762F342236DDFD400F42FDB /* img4tool.hpp.in */,
 				87A281362347B7CA00ED08BB /* img4tool.hpp */,
 				87A281352347B7CA00ED08BB /* img4tool.cpp */,
+				2A76A68A2E16A5B5002B3BCD /* separttool.hpp */,
+				2A76A68B2E16A5B5002B3BCD /* separttool.cpp */,
 				879896AC2344A91900A98709 /* main.cpp */,
 			);
 			path = img4tool;
@@ -154,6 +214,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2A76A67F2E16A4E7002B3BCD /* separttool */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2A76A6862E16A4E7002B3BCD /* Build configuration list for PBXNativeTarget "separttool" */;
+			buildPhases = (
+				2A76A67C2E16A4E7002B3BCD /* Sources */,
+				2A76A67D2E16A4E7002B3BCD /* Frameworks */,
+				2A76A67E2E16A4E7002B3BCD /* CopyFiles */,
+				2A76A68F2E16A842002B3BCD /* Embed Libraries */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = separttool;
+			packageProductDependencies = (
+			);
+			productName = separttool;
+			productReference = 2A76A6802E16A4E7002B3BCD /* separttool */;
+			productType = "com.apple.product-type.tool";
+		};
 		879896A82344A91900A98709 /* img4tool */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 879896B02344A91900A98709 /* Build configuration list for PBXNativeTarget "img4tool" */;
@@ -181,6 +261,9 @@
 				LastUpgradeCheck = 1010;
 				ORGANIZATIONNAME = tihmstar;
 				TargetAttributes = {
+					2A76A67F2E16A4E7002B3BCD = {
+						CreatedOnToolsVersion = 16.0;
+					};
 					879896A82344A91900A98709 = {
 						CreatedOnToolsVersion = 10.1;
 					};
@@ -199,11 +282,24 @@
 			projectRoot = "";
 			targets = (
 				879896A82344A91900A98709 /* img4tool */,
+				2A76A67F2E16A4E7002B3BCD /* separttool */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2A76A67C2E16A4E7002B3BCD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A76A6892E16A4F0002B3BCD /* main.cpp in Sources */,
+				2A76A6902E16A85A002B3BCD /* separttool.cpp in Sources */,
+				2A76A6912E16A85A002B3BCD /* lzssdec.cpp in Sources */,
+				2A76A6922E16A85A002B3BCD /* ASN1DERElement.cpp in Sources */,
+				2A76A6932E16A85A002B3BCD /* img4tool.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		879896A52344A91900A98709 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -211,13 +307,49 @@
 				879896AD2344A91900A98709 /* main.cpp in Sources */,
 				87A281342347B7B900ED08BB /* ASN1DERElement.cpp in Sources */,
 				87A281372347B7CA00ED08BB /* img4tool.cpp in Sources */,
-				87EB3A6923561EE2008F1B06 /* lzssdec.c in Sources */,
+				2A76A68C2E16A5B5002B3BCD /* separttool.cpp in Sources */,
+				87EB3A6923561EE2008F1B06 /* lzssdec.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		2A76A6842E16A4E7002B3BCD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					XCODE,
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		2A76A6852E16A4E7002B3BCD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 		879896AE2344A91900A98709 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -262,6 +394,12 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
+					HAVE_MEMMEM,
+					HAVE_PLIST,
+					XCODE,
+					HAVE_CRYPTO,
+					HAVE_OPENSSL,
+					HAVE_LIBCOMPRESSION,
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -269,6 +407,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/include",
+					"$(SRCROOT)/include/img4tool",
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -322,6 +466,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/include",
+					"$(SRCROOT)/include/img4tool",
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -335,19 +485,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
-					"HAVE_PLIST=1",
-					"HAVE_CRYPTO=1",
-					"HAVE_OPENSSL=1",
-					"HAVE_LIBCOMPRESSION=1",
-					XCODE,
-					"HAVE_LIBFWKEYFETCH=1",
+					"$(inherited)",
 				);
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/include",
-					"$(SRCROOT)/include/img4tool",
-					/usr/local/include,
-				);
-				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -357,12 +497,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				GCC_PREPROCESSOR_DEFINITIONS = "";
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/include",
-					"$(SRCROOT)/include/img4tool",
-					/usr/local/include,
-				);
-				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -370,6 +505,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2A76A6862E16A4E7002B3BCD /* Build configuration list for PBXNativeTarget "separttool" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2A76A6842E16A4E7002B3BCD /* Debug */,
+				2A76A6852E16A4E7002B3BCD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		879896A42344A91900A98709 /* Build configuration list for PBXProject "img4tool" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

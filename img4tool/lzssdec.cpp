@@ -10,20 +10,15 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <sys/types.h>
 #include <stdint.h>
-#include "lzssdec.h"
+#include "lzssdec.hpp"
 #include <libgeneral/macros.h>
+#include <libgeneral/ByteOrder.hpp>
 #include <string.h>
 
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#elif defined(HAVE_WINSOCK_H)
-#include <winsock.h>
-#endif
 
 #ifndef HAVE_MEMMEM
-void *memmem(const void *haystack_start, size_t haystack_len, const void *needle_start, size_t needle_len){
+static void *memmem(const void *haystack_start, size_t haystack_len, const void *needle_start, size_t needle_len){
     const unsigned char *haystack = (const unsigned char *)haystack_start;
     const unsigned char *needle = (const unsigned char *)needle_start;
     const unsigned char *h = NULL;
@@ -42,7 +37,7 @@ void *memmem(const void *haystack_start, size_t haystack_len, const void *needle
         return NULL;
     }
 
-    for (; *haystack && haystack_len--; haystack++) {
+    for (; haystack_len--; haystack++) {
         x = needle_len;
         n = needle;
         h = haystack;
@@ -50,17 +45,12 @@ void *memmem(const void *haystack_start, size_t haystack_len, const void *needle
         if (haystack_len < needle_len)
             break;
 
-        if ((*haystack != *needle) || (*haystack + needle_len != *needle + needle_len))
+        if ((haystack[0] != needle[0]) || (haystack[needle_len-1] != needle[needle_len-1]))
             continue;
 
-        for (; x; h++, n++) {
-            x--;
-
-            if (*h != *n)
-                break;
-
-            if (x == 0)
-                return (void *)haystack;
+        for (; x--; h++, n++) {
+            if (*h != *n) break;
+            if (x == 0) return (void *)haystack;
         }
     }
     return NULL;
@@ -83,26 +73,26 @@ struct compHeader {
 };
 
 char *tryLZSS(const char *compressed, size_t compressedSize, size_t *outSize, const char **outHypervisor, size_t *outHypervisorSize){
-    struct compHeader *compHeader = (struct compHeader*)compressed;
+    const struct compHeader *compHeader = (const struct compHeader*)compressed;
     if (!compHeader) return NULL;
-    int sig[2] = { 0xfeedfacf, 0x0100000c };
-    int sig2[2] = { 0xfeedface, 0x0000000c };
+    uint32_t sig[2] = { 0xfeedfacf, 0x0100000c };
+    uint32_t sig2[2] = { 0xfeedface, 0x0000000c };
 
-    char *decomp = malloc (ntohl(compHeader->uncompressedSize));
-    char *feed = memmem(compressed+64, 1024, sig, sizeof(sig));
+    char *decomp = (char*)malloc (cnvBETOH(compHeader->uncompressedSize));
+    char *feed = (char*)memmem(compressed+64, 1024, sig, sizeof(sig));
 
     if (!feed){
-        if (!(feed = memmem(compressed+64, 1024, sig2, sizeof(sig2))))
+        if (!(feed = (char*)memmem(compressed+64, 1024, sig2, sizeof(sig2))))
             return NULL;
     }
     
     feed--;
-    int rc = decompress_lzss((void*)decomp, (void*)feed, ntohl(compHeader->compressedSize));
-    if (rc != ntohl(compHeader->uncompressedSize)) {
+    int rc = decompress_lzss((uint8_t*)decomp, (uint8_t*)feed, cnvBETOH(compHeader->compressedSize));
+    if (rc != cnvBETOH(compHeader->uncompressedSize)) {
         return NULL;
     }
 
-    if (ntohl(compHeader->adler32) != lzadler32((const uint8_t*)decomp, rc)) {
+    if (cnvBETOH(compHeader->adler32) != lzadler32((const uint8_t*)decomp, rc)) {
         return NULL;
     }
     
@@ -116,7 +106,7 @@ char *tryLZSS(const char *compressed, size_t compressedSize, size_t *outSize, co
     //check we care about an additional macho at the end
     if (outHypervisor) {
         *outHypervisor = NULL;
-        const char *hypervisor = compressed + sizeof(struct compHeader) + ntohl(compHeader->compressedSize);
+        const char *hypervisor = compressed + sizeof(struct compHeader) + cnvBETOH(compHeader->compressedSize);
         if (hypervisor - compressed + sizeof(uint32_t) <= compressedSize) {
             //there is something at the end of the compressed buffer
             if (*(uint32_t*)hypervisor == 0xfeedfacf) {
@@ -144,13 +134,13 @@ uint32_t lzss_compress(const uint8_t *src, uint32_t src_len,uint8_t *dst, uint32
     
     memcpy(compHeader->sig, "complzss", sizeof(compHeader->sig));
     
-    compHeader->adler32 = ntohl(lzadler32(src, src_len));
-    compHeader->uncompressedSize = ntohl(src_len);
-    compHeader->unknown1 = ntohl(1);
+    compHeader->adler32 = cnvHTOBE(lzadler32(src, src_len));
+    compHeader->uncompressedSize = cnvHTOBE(src_len);
+    compHeader->unknown1 = cnvHTOBE(1);
     
     uint8_t *end = compress_lzss(dst, dst_len, src, src_len);
     compSize = (uint32_t)(end-dst);
-    compHeader->compressedSize = ntohl(compSize);
+    compHeader->compressedSize = cnvHTOBE(compSize);
     
     return compSize + sizeof(struct compHeader);
 }

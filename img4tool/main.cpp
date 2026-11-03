@@ -20,6 +20,7 @@
 #include <libgeneral/macros.h>
 #include <libgeneral/Mem.hpp>
 #include <libgeneral/Utils.hpp>
+#include <libgeneral/ByteOrder.hpp>
 #include "../include/img4tool/img4tool.hpp"
 
 #ifdef HAVE_PLIST
@@ -41,6 +42,8 @@ using namespace std;
 #define FLAG_CONVERT    (1 << 5)
 #define FLAG_VERIFY     (1 << 6)
 
+#define IMG4TOOL_DEFAULT_CREATE_DESCRIPTION "Image created by img4tool"
+
 static struct option longopts[] = {
     { "help",           no_argument,        NULL, 'h' },
     { "print-all",      no_argument,        NULL, 'a' },
@@ -53,11 +56,14 @@ static struct option longopts[] = {
     { "rename-payload", required_argument,  NULL, 'n' },
     { "outfile",        required_argument,  NULL, 'o' },
     { "im4p",           required_argument,  NULL, 'p' },
+    { "copy-payp",      required_argument,  NULL, 'P' },
     { "type",           required_argument,  NULL, 't' },
 
     { "iv",             required_argument,  NULL,  0  },
     { "key",            required_argument,  NULL,  0  },
     { "compression",    required_argument,  NULL,  0  },
+    { "kbag",           required_argument,  NULL,  0  },
+    { "impl-tz0s",      required_argument,  NULL,  0  },
 
 #ifdef HAVE_LIBFWKEYFETCH
     { "fetch",          no_argument,        NULL, 'f' },
@@ -70,69 +76,6 @@ static struct option longopts[] = {
     { NULL, 0, NULL, 0 }
 };
 
-char *readFromFile(const char *filePath, size_t *outSize){
-    FILE *f = fopen(filePath, "r");
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    size_t size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *ret = (char*)malloc(size);
-    if (ret) fread(ret, size, 1, f);
-    fclose(f);
-    if (outSize) *outSize = size;
-
-    return ret;
-}
-
-#ifdef HAVE_PLIST
-plist_t readPlistFromFile(const char *filePath){
-    auto f = tihmstar::readFile(filePath);
-    plist_t plist = NULL;
-    plist_from_memory((const char*)f.data(), (uint32_t)f.size(), &plist, NULL);
-    return plist;
-}
-
-tihmstar::Mem im4mFormShshFile(const char *shshfile, char **generator){
-    plist_t shshplist = NULL;
-    cleanup([&]{
-        safeFreeCustom(shshplist, plist_free);
-    });
-    tihmstar::Mem ret;
-    
-    shshplist = readPlistFromFile(shshfile);
-    
-    if (plist_t ticket = plist_dict_get_item(shshplist, "ApImg4Ticket")){
-        char *im4m = 0;
-        uint64_t im4msize=0;
-        plist_get_data_val(ticket, &im4m, &im4msize);
-        ret.append(im4m, im4msize);
-    }
-    
-    if (generator){
-        if (plist_t ticket = plist_dict_get_item(shshplist, "generator"))
-            plist_get_string_val(ticket, generator);
-    }
-    return ret;
-}
-#endif //HAVE_PLIST
-
-
-void saveToFile(const char *filePath, const void *buf, size_t bufSize){
-    FILE *f = NULL;
-    cleanup([&]{
-        if (f) {
-            fclose(f);
-        }
-    });
-    
-    if (strcmp(filePath, "-") == 0) {
-        write(STDERR_FILENO, buf, bufSize);
-    }else{
-        retassure(f = fopen(filePath, "wb"), "failed to create file");
-        retassure(fwrite(buf, 1, bufSize, f) == bufSize, "failed to write to file");
-    }
-}
-
 void cmd_help(){
     printf(
            "Usage: img4tool [OPTIONS] FILE\n"
@@ -143,6 +86,7 @@ void cmd_help(){
            "  -i, --im4p-only\t\tprint only im4p\n"
            "  -m, --im4m\t\t<PATH>\tFilepath for im4m (depending on -e being set)\n"
            "  -p, --im4p\t\t<PATH>\tFilepath for im4p (depending on -e being set)\n"
+           "  -P, --copy-payp\t\t<PATH>\tCopy PAYP from im4p, when creating new im4p\n"
            "  -c, --create\t\t<PATH>\tcreates an img4 with the specified im4m, im4p or creates im4p with raw file (last argument)\n"
            "  -o, --outfile\t\t\toutput path for extracting im4p payload (-e) or renaming im4p (-n)\n"
            "  -t, --type\t\t\tset type for creating IM4P files from raw\n"
@@ -151,7 +95,9 @@ void cmd_help(){
            "  -g, --generator\t<GEN>\tAdd generator to img4 (eg. 0x726174736d686974)\n"
            "      --iv\t\t\tIV  for decrypting payload when extracting (requires -e and -o)\n"
            "      --key\t\t\tKey for decrypting payload when extracting (requires -e and -o)\n"
+           "      --kbag\t\t\tKBag for re-encrypting im4p (requires --iv and --key)\n"
            "      --compression\t\tset compression type when creating im4p from raw file\n"
+           "      --impl-tz0s <size>\t\tCreate impl-sepidesc with tzs0 element\n"
 #ifdef HAVE_LIBFWKEYFETCH
            "[libfwkeyfetch]\n"
 #else
@@ -216,9 +162,11 @@ int main_r(int argc, const char * argv[]) {
     const char *outFile = NULL;
     const char *decryptIv = NULL;
     const char *decryptKey = NULL;
+    const char *encryptKBAG = NULL;
     const char *im4pType = NULL;
-    const char *im4pDesc = "Image created by img4tool";
+    const char *im4pDesc = NULL;
     const char *compressionType = NULL;
+    const char *copyPayp = NULL;
 #ifdef HAVE_PLIST
     const char *buildmanifestFile = NULL;
 #endif //HAVE_PLIST
@@ -235,8 +183,10 @@ int main_r(int argc, const char * argv[]) {
     cleanup([&]{
         safeFree(generator);
     });
+    
+    std::vector<ASN1DERElement> sepidescImplElements;
 
-    while ((opt = getopt_long(argc, (char* const *)argv, "hac:d:efg:im:n:o:p:s:t:v::", longopts, &optindex)) >= 0) {
+    while ((opt = getopt_long(argc, (char* const *)argv, "hac:d:efg:im:n:o:p:P:s:t:v::", longopts, &optindex)) >= 0) {
         switch (opt) {
             case 0: //long opts
             {
@@ -253,6 +203,28 @@ int main_r(int argc, const char * argv[]) {
                     decryptIv = optarg;
                 }else if (curopt == "key") {
                     decryptKey = optarg;
+                }else if (curopt == "kbag") {
+                    encryptKBAG = optarg;
+                }else if (curopt == "impl-tz0s") {
+                    uint32_t tz0s = (uint32_t)tihmstar::parseNum(optarg);
+                    ASN1DERElement etz0s;
+                    {
+                        ASN1DERElement etz0s_seq{{ASN1DERElement::TagSEQUENCE,1,0}, NULL, 0};
+                        {
+                            ASN1DERElement e{{ASN1DERElement::TagIA5String,0,0}, "tz0s", 4};
+                            etz0s_seq += e;
+                        }
+                        {
+                            uint32_t be_tz0s = cnvHTOBE(tz0s);
+                            ASN1DERElement e{{ASN1DERElement::TagINTEGER,0,0}, &be_tz0s, sizeof(be_tz0s)};
+                            etz0s_seq += e;
+                        }
+                        etz0s = genPrivTagForNumberWithPayload('tz0s', etz0s_seq);
+                    }
+                    sepidescImplElements.push_back(etz0s);
+                }else{
+                    error("Unknoen curopt '%s'",curopt.c_str());
+                    return -1;
                 }
                 break;
             }
@@ -300,6 +272,9 @@ int main_r(int argc, const char * argv[]) {
                 break;
             case 'p':
                 im4pFile = optarg;
+                break;
+            case 'P':
+                copyPayp = optarg;
                 break;
 #ifdef HAVE_PLIST
             case 's':
@@ -431,7 +406,7 @@ int main_r(int argc, const char * argv[]) {
                 failedToFindKeys:;
                 }
                 payload = getPayloadFromIM4P(file, decryptIv, decryptKey, &compression);
-                saveToFile(outFile, payload.payload(), payload.payloadSize());
+                tihmstar::writeFile(outFile, payload.payload(), payload.payloadSize());
 
                 if (compression) {
                     printf("Extracted (and uncompressed %s) IM4P payload to %s\n",compression,outFile);
@@ -443,19 +418,19 @@ int main_r(int argc, const char * argv[]) {
                 //extract im4p an im4m from img4
                 if (im4pFile) {
                     auto im4p = getIM4PFromIMG4(file);
-                    saveToFile(im4pFile, im4p.buf(), im4p.size());
+                    tihmstar::writeFile(im4pFile, im4p.buf(), im4p.size());
                     printf("Extracted IM4P to %s\n",im4pFile);
                     didExtract = true;
                 }
                 if (im4mFile) {
                     auto im4m = getIM4MFromIMG4(file);
-                    saveToFile(im4mFile, im4m.buf(), im4m.size());
+                    tihmstar::writeFile(im4mFile, im4m.buf(), im4m.size());
                     printf("Extracted IM4M to %s\n",im4mFile);
                     didExtract = true;
                 }
             }else if (isIM4M(file)){
                 retassure(im4mFile, "requested extracting IM4M from SHSH but no output path was given");
-                saveToFile(im4mFile, file.buf(), file.size());
+                tihmstar::writeFile(im4mFile, file.buf(), file.size());
                 printf("Saved IM4M to %s\n",im4mFile);
                 didExtract = true;
             }
@@ -465,25 +440,90 @@ int main_r(int argc, const char * argv[]) {
                 return -1;
             }
         } else if (flags & FLAG_CREATE && im4pType){
-            ASN1DERElement im4p = getEmptyIM4PContainer(im4pType, im4pDesc);
+            ASN1DERElement im4p;
+            if (sepidescImplElements.size()) {
+                ASN1DERElement eimpl_seq{{ASN1DERElement::TagSEQUENCE,1,0}, NULL, 0};
+                {
+                    ASN1DERElement e{{ASN1DERElement::TagIA5String,0,0}, "impl", 4};
+                    eimpl_seq += e;
+                }
+                {
+                    ASN1DERElement set{{ASN1DERElement::TagSET,1,0}, NULL, 0};
+                    for (auto e : sepidescImplElements) {
+                        set += e;
+                    }
+                    eimpl_seq += set;
+                }
+                ASN1DERElement impl = genPrivTagForNumberWithPayload('impl', eimpl_seq);
+                std::string implhex;
+                implhex.resize(impl.size()*2+1);
+                for (int i=0; i<impl.size(); i++) {
+                    snprintf((char*)&implhex.data()[i*2], 3, "%02x",((uint8_t*)impl.buf())[i]);
+                }
+                im4p = getEmptyIM4PContainer(im4pType, implhex.c_str());
+            }else{
+                if (!im4pDesc) im4pDesc = IMG4TOOL_DEFAULT_CREATE_DESCRIPTION;
+                im4p = getEmptyIM4PContainer(im4pType, im4pDesc);
+            }
 
             im4p = appendPayloadToIM4P(im4p, workingBuf.data(), workingBuf.size(), compressionType);
+            if (encryptKBAG && decryptIv && decryptKey) {
+                im4p = encryptIM4P(im4p, decryptIv, decryptKey, encryptKBAG);
+                info("Encrypted IM4P with:\n"
+                     "\tIV: '%s'\n"
+                     "\tKEY: '%s'\n"
+                     "\tKBAG: '%s'", decryptIv, decryptKey, encryptKBAG);
+            }
 
-            saveToFile(outFile, im4p.buf(), im4p.size());
+            if (copyPayp) {
+                auto paypF = tihmstar::readFile(copyPayp);
+                ASN1DERElement payp(paypF.data(), paypF.size());
+                if (isIMG4(payp)){
+                    payp = getIM4PFromIMG4(payp);
+                }
+                if (im4pContainsPAYP(payp)) {
+                    payp = getPAYPFromIM4P(payp);
+                    im4p = appendPAYPToIM4P(im4p, payp);
+                }else{
+                    warning("Template IM4P does not contain PAYP");
+                }
+            }
+            
+            tihmstar::writeFile(outFile, im4p.buf(), im4p.size());
             printf("Created IM4P file at %s\n",outFile);
         } else if (flags & FLAG_RENAME){
             retassure(im4pType, "typen required");
             retassure(outFile, "outputfile required");
 
+            ASN1DERElement img4;
             ASN1DERElement im4p(workingBuf.data(), workingBuf.size());
             string seqName = getNameForSequence(workingBuf.data(), workingBuf.size());
-            if (seqName != "IM4P"){
-                reterror("File not an IM4P");
+            if (seqName == "IMG4"){
+                img4 = im4p;
+                im4p = getIM4PFromIMG4(img4);
+                seqName = getNameForSequence(im4p.buf(), im4p.size());
             }
-
+            retassure(seqName == "IM4P","File not an IM4P");
             im4p = renameIM4P(im4p, im4pType);
-            saveToFile(outFile, im4p.buf(), im4p.size());
-            printf("Saved new renamed IM4P to %s\n",outFile);
+            if (img4.size() > 10) {
+                auto newimg4 = getEmptyIMG4Container();
+                newimg4 = appendIM4PToIMG4(newimg4, im4p);
+                //
+                im4p = {};
+                try {im4p = getIM4MFromIMG4(img4);} catch (...) {}
+                if (im4p.size() > 10) newimg4 = appendIM4MToIMG4(newimg4, im4p);
+                //
+                im4p = {};
+                try {im4p = getIM4RFromIMG4(img4);} catch (...) {}
+                if (im4p.size() > 10) newimg4 = appendIM4RToIMG4(newimg4, im4p);
+                im4p = newimg4;
+            }
+            tihmstar::writeFile(outFile, im4p.buf(), im4p.size());
+            if (img4.size() > 10) {
+                printf("Saved new renamed IMG4 to %s\n",outFile);
+            }else{
+                printf("Saved new renamed IM4P to %s\n",outFile);
+            }
         }
 #ifdef HAVE_PLIST
         else if (flags & FLAG_CONVERT){
@@ -541,7 +581,7 @@ int main_r(int argc, const char * argv[]) {
             }
 
             retassure((plist_to_xml(newshsh, &xml, &xmlSize),xml), "failed to convert plist to xml");
-            saveToFile(shshFile, xml, xmlSize);
+            tihmstar::writeFile(shshFile, xml, xmlSize);
             printf("Saved IM4M to %s\n",shshFile);
         } else if (flags & FLAG_VERIFY){
             //verify
@@ -588,7 +628,7 @@ int main_r(int argc, const char * argv[]) {
                 }
 #endif //HAVE_CRYPTO
                 if (buildmanifestFile){
-                    retassure(buildmanifest = readPlistFromFile(buildmanifestFile),"failed to read buildmanifest");
+                    retassure(!plist_read_from_file(buildmanifestFile, &buildmanifest, NULL), "failed to read buildmanifest");
                 }
                 
                 bool isvalid = isValidIM4M(file, buildmanifest, im4pElemDgstName);
@@ -602,7 +642,7 @@ int main_r(int argc, const char * argv[]) {
                     printf("[IMG4TOOL] SHSH2 contains generator %s which is %s for nonce in IM4M!\n", generator, isGenValid ? "GOOD" : "BAD");
                 }
                 
-            }else if (isIM4M(file)){
+            }else if (isIM4P(file)){
                 reterror("Verify does not make sense on IM4P file!");
             }else{
                 reterror("File not recognised");
@@ -656,7 +696,7 @@ int main_r(int argc, const char * argv[]) {
             img4 = appendIM4RToIMG4(img4, getIM4RFromGenerator(bnch));
         }
 
-        saveToFile(outFile, img4.buf(), img4.size());
+        tihmstar::writeFile(outFile, img4.buf(), img4.size());
         printf("Created IMG4 file at %s\n",outFile);
     }
     else{

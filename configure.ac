@@ -57,6 +57,12 @@ AC_ARG_ENABLE([debug],
             [debug_build=true],
             [debug_build=false])
 
+AC_ARG_ENABLE([separttool],
+            [AS_HELP_STRING([--enable-separttool],
+            [enable building separttool binary(default is no)])],
+            [enable_separttool=true],
+            [enable_separttool=false])
+
 AC_ARG_WITH([libfwkeyfetch],
             [AS_HELP_STRING([--without-libfwkeyfetch],
             [do not build with libfwkeyfetch @<:@default=yes (if available)@:>@])],
@@ -80,6 +86,8 @@ AC_ARG_WITH([compression],
             [do not build with bvx2 support @<:@default=yes@:>@])],
             [with_compression=no],
             [with_compression=yes])
+
+AM_CONDITIONAL(ENABLE_SEPARTTOOL, test x$enable_separttool == xtrue)
 
 if test "x$have_libfwkeyfetch" == "xyes"; then
   if test "x$with_libfwkeyfetch" == "xyes"; then
@@ -175,7 +183,8 @@ AC_CONFIG_FILES([Makefile
                  include/Makefile
                  libimg4tool.pc
                  include/img4tool/img4tool.hpp
-                 img4tool/Makefile])
+                 img4tool/Makefile
+                 separttool/Makefile])
 
 AC_OUTPUT
 
@@ -185,6 +194,8 @@ Configuration for $PACKAGE-$VERSION:
 -------------------------------------------
 
   install prefix ..........: $prefix
+  debug build .............: $debug_build
+  enable separttool .......: $enable_separttool
   with libfwkeyfetch ......: $with_libfwkeyfetch
   with plist ..............: $with_plist
   with bvx2 ...............: $with_compression

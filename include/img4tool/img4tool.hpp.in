@@ -11,7 +11,6 @@
 
 #include <img4tool/ASN1DERElement.hpp>
 #include <libgeneral/Mem.hpp>
-#include <unistd.h>
 #include <vector>
 #include <map>
 
@@ -45,33 +44,41 @@ namespace tihmstar {
 
         bool im4pContainsKBAG(const ASN1DERElement &im4p);
         tihmstar::Mem getKBAG(const ASN1DERElement &im4p, int kbagNum);
-    
+        bool im4pContainsPAYP(const ASN1DERElement &im4p);
+        ASN1DERElement getPAYPFromIM4P(const ASN1DERElement &im4p);
+
         ASN1DERElement getPayloadFromIM4P(const ASN1DERElement &im4p, const char *decryptIv = NULL, const char *decryptKey = NULL, const char **outUsedCompression = NULL, ASN1DERElement *outHypervisor = NULL);
         ASN1DERElement getValFromIM4M(const ASN1DERElement &im4m, uint32_t val);
         ASN1DERElement getValFromElement(const ASN1DERElement &e, uint32_t val);
 
     
+        ASN1DERElement parsePrivTag(const void *buf, uint64_t size, uint64_t *outPrivTag);
         ASN1DERElement genPrivTagForNumberWithPayload(size_t privnum, const ASN1DERElement &payload);
 
 #if @HEADER_HAVE_CRYPTO@ //HAVE_CRYPTO
         ASN1DERElement decryptPayload(const ASN1DERElement &payload, const char *decryptIv, const char *decryptKey);
+        ASN1DERElement encryptIM4P(const ASN1DERElement &payload, const char *encryptIV, const char *encryptKey, const char *kbag1, const char *kbag2 = NULL);
         std::string getIM4PSHA1(const ASN1DERElement &im4p);
         std::string getIM4PSHA384(const ASN1DERElement &im4p);
         std::string dgstNameForHash(const ASN1DERElement &im4m, std::string hash);
         bool im4mContainsHash(const ASN1DERElement &im4m, std::string hash) noexcept;
         bool isGeneratorValidForIM4M(const ASN1DERElement &im4m, std::string generator) noexcept;
+        bool isIM4PValidForIM4M(const ASN1DERElement &im4p, const ASN1DERElement &im4m);
+        bool isIM4PValidForIM4MInIMG4(const ASN1DERElement &img4);
 #endif //HAVE_CRYPTO
 
         ASN1DERElement getEmptyIM4PContainer(const char *type, const char *desc);
         ASN1DERElement getIM4RWithElements(std::map<std::string,tihmstar::Mem> elements);
 
         ASN1DERElement appendPayloadToIM4P(const ASN1DERElement &im4p, const void *buf, size_t size, const char *compression = NULL, const void *buf2Raw = NULL, size_t buf2RawSize = 0);
+        ASN1DERElement appendPAYPToIM4P(const ASN1DERElement &im4p, const ASN1DERElement &payp);
 
         bool isIMG4(const ASN1DERElement &img4) noexcept;
         bool isIM4P(const ASN1DERElement &im4p) noexcept;
         bool isIM4M(const ASN1DERElement &im4m) noexcept;
         bool isIM4R(const ASN1DERElement &im4m) noexcept;
         bool isIM4C(const ASN1DERElement &im4c) noexcept;
+        bool isPAYP(const ASN1DERElement &payp) noexcept;
 
         ASN1DERElement renameIM4P(const ASN1DERElement &im4p, const char *type);
     
@@ -80,6 +87,7 @@ namespace tihmstar {
         bool isIM4MSignatureValid(const ASN1DERElement &im4m);
 
 #if @HEADER_HAVE_PLIST@ //HAVE_PLIST
+        tihmstar::Mem im4mFormShshFile(const char *shshfile, char **generator);
         bool doesIM4MBoardMatchBuildIdentity(const ASN1DERElement &im4m, plist_t buildIdentity) noexcept;
         bool im4mMatchesBuildIdentity(const ASN1DERElement &im4m, plist_t buildIdentity, std::vector<const char*> ignoreWhitelist = {}) noexcept;
         const plist_t getBuildIdentityForIm4m(const ASN1DERElement &im4m, plist_t buildmanifest, std::vector<const char*> ignoreWhitelist = {});
